@@ -36,6 +36,19 @@
   replaced with LetL by Leonid Shifrin from http://mathematica.stackexchange.com/a/10451/6804
   *)
 
+(* :Bugs:
+---
+  This creates an error when run after <<paul` has been loaded:
+
+  f = 0 &;
+DensityPlot3D[f[x, y, z], {x, 1, 3}, {y, 1, 3}, {z, 1, 3}]
+
+ClearAll["paul`*", "paul`Private`*"] does not seem to resolve the issue, only restarting the Kernel without <<paul` does.
+
+It happens even when we don't modify the built-in ArrayReshape.
+--- > this was caused by setting $PrePrint
+*)
+
 BeginPackage["paul`",  {"BoolEval`"}];
 
 ClearAll@"paul`*";
@@ -127,7 +140,8 @@ MatrixInterleave::usage =
 ImageData@Image[matrices, Interleaving->True].";
 
 ArrayInterleave::usage =
-    "Combines a list of arrays of the same dimensions into an array of lists";
+    "Combines a list of arrays of the same dimensions into an array of lists.
+    Inserts an extra level of lists if only one array is given.";
 
 
 ArrayDeinterleave::usage =
@@ -399,8 +413,301 @@ DeleteIf::usage = "Like DeleteCases, but always applies a test. Circumvents the 
 
 DeleteMembersOf::usage = "Like Complement, but does not sort"
 
+ToInnerCoordinateBounds::usage = "Given CoordinateBounds, subtracts 1 from the max and adds one to the min,
+effectively giving the coordinate bounds of the inner set"
+
+SymmetricMinMax::usage = "Gives a tuple of 2 elements, -a, a where a = Max@Abs@MinMax@data. Useful to scale color gradients with a middle, say RedGreenSplit
+for data that is positive/negative"
+PlusMinusList::usage = "Gives the ordered tuple {-Abs@x, Abs@x}"
+
+DataAdjust::usage = "Like ImageAdjust but works for any data where Min/Max can be determined"
+DataAdjustSymmetric::usage = "Like DataAdjust, but uses SymmetricMinMax to remap 0 to 0.5 and scales the data according to the +- range"
+
+LinearListInterpolation::usage = "LinearListInterpolation[data] Constructs a function in ArrayDepth@data
+arguments that linearly (bilinearly, trilinearly etc.) interpolates the data."
+
+
+ShowDistanceField::usage = "ShowDistanceField[data] visualizes a 2d \
+distance field defined by bilinear interpolation of distance values \
+defined at grid points"
+
+ShowDistanceField3D::usage = "ShowDistanceField3D[data] visualizes a \
+3d distance field defined by bilinear interpolation of distance \
+values defined at grid points"
+
+ShowDistanceField3DSlice::usage = "Uses ShowDistanceField to interactively show only one slice at a time (in any direction) through a 3d volume"
+
+(* TODO consider plotting multiple contours at once, make current contour (outlines) thick, c.f. vsfs2d *)
+
 (* ********************* --- Implementation --- ********************* *)
+
 Begin@"`Private`";
+
+(* ********************* ShowDistanceField3D ********************* *)
+
+Options[ShowDistanceField3D] = {Method -> ListPlot,
+  PerformanceGoal -> "Speed"};
+$ShowDistanceField3DAxesLabel = {"dim1", "dim2",
+  "dim3"}(*{"x","y","z"}*)
+$ShowDistanceFieldInside = ColorData["RedGreenSplit"]@0;
+$ShowDistanceFieldOutside = ColorData["RedGreenSplit"]@1;
+
+ShowDistanceField3D[data_ /; ArrayQ[data, 3, NumericQ],
+  Image3D, _] := {smm = SymmetricMinMax@data}~With~Graphics3D[{
+  Point@Table[1, 3],
+  Translate[
+    Raster3D[data~Transpose~{3, 2, 1}
+      , ColorFunction -> (ColorData[{"RedGreenSplit", smm}][#]~Append~
+        0.5 &)
+    ], Table[0.5, 3]]
+}
+  , Axes -> True
+  , AxesLabel -> $ShowDistanceField3DAxesLabel
+  , AxesOrigin -> Table[0.5, 3]
+  , Ticks -> (Range[#] & /@ Dimensions@data)
+  , PlotRange -> ({Table[0.5, 3], 0.5 + Dimensions[data]} //
+      Transpose)
+]
+
+ShowDistanceField3D[data_ /; ArrayQ[data, 3, NumericQ],
+  OptionsPattern[]] :=
+    ShowDistanceField3D[data, OptionValue@Method,
+      OptionValue@PerformanceGoal];
+
+ShowDistanceField3D[data_ /; ArrayQ[data, 3, NumericQ], ListPlot,
+  "Speed"] := {
+  smm = SymmetricMinMax@data, cf = ColorData[{"RedGreenSplit", smm}]
+  , tdata = data~Transpose~{3, 2, 1}
+  , dr = {{1, 1, 1}, Dimensions@data} // Transpose
+  , dp = ListDensityPlot3D[tdata
+    , ColorFunction -> cf
+    , ColorFunctionScaling -> False
+    , DataRange -> dr
+    , BoxRatios -> Automatic
+  ]
+  , ticks = (Range[#] & /@ Dimensions@data)
+  , lpg =
+      If[Max@Dimensions@data < 20,
+        "Quality"(*seems faster (less polygons) for small data?
+     swapped labels?*), "Speed"]
+  , g3d = Graphics3D[Point@Table[1, 3]
+    , Axes -> True
+    , AxesLabel -> $ShowDistanceField3DAxesLabel
+    , AxesOrigin -> Table[1, 3]
+    , Ticks -> ticks
+  ]
+}~LetL~Manipulate[
+  Show[
+    g3d
+    , dp
+    , ListContourPlot3D[tdata
+    , Contours -> {contour}
+    , DataRange -> dr
+    , BoxRatios -> Automatic
+    , PerformanceGoal -> lpg
+    , Mesh -> None
+    , ContourStyle -> {FaceForm[$ShowDistanceFieldOutside,
+      $ShowDistanceFieldInside]}
+  ]
+  ],
+  {{contour, Max[Min@data, 0]}, Min@data, Max@data},
+  TrackedSymbols :> {contour}
+]
+
+ShowDistanceField3D[data_ /; ArrayQ[data, 3, NumericQ], ListPlot,
+  "Quality"] := {
+  f = LinearListInterpolation@data
+  , tdata = data~Transpose~{3, 2, 1}
+  , smm = SymmetricMinMax@data, cf = ColorData[{"RedGreenSplit", smm}]
+  , dr = {{1, 1, 1}, Dimensions@data} // Transpose
+  , dp = DensityPlot3D[
+    f[x, y, z]
+    , {x, 1, Dimensions[data][[1]]}, {y, 1,
+      Dimensions[data][[2]]}, {z, 1, Dimensions[data][[3]]}
+    , ColorFunction -> cf
+    , ColorFunctionScaling -> False
+    , PlotRange -> ({{1, 1, 1}, Dimensions[data]} // Transpose)
+    , BoxRatios -> Automatic
+  (*,OpacityFunctionScaling\[Rule]False,
+     OpacityFunction\[Rule](0.1-0.07Sign[#-contour]&)*)
+  ]
+}~LetL~Manipulate[
+  Show[
+    Graphics3D[Point@Table[1, 3]
+      , Axes -> True
+      , AxesLabel -> $ShowDistanceField3DAxesLabel
+      , AxesOrigin -> Table[1, 3]
+      , Ticks -> (Range[#] & /@ Dimensions@data)
+    ]
+    , dp
+    , ListContourPlot3D[tdata
+    , Contours -> {contour}
+    , DataRange -> dr
+    , PerformanceGoal ->
+        If[Max@Dimensions@data < 20, "Speed", "Quality"]
+    , BoxRatios -> Automatic
+    , Mesh -> None
+    , ContourStyle -> {FaceForm[$ShowDistanceFieldOutside,
+      $ShowDistanceFieldInside]}
+  (*seems nicer for small data?*)
+  ]
+  ],
+  {{contour, Max[Min@data, 0]}, Min@data, Max@data},
+  TrackedSymbols :> {contour}
+]
+
+(*WARNING: not much better than Quality but much slower, use only for \
+Print*)
+ShowDistanceField3D[data_ /; ArrayQ[data, 3, NumericQ], ListPlot,
+  "HighQuality"] :=
+    {tdata = data~Transpose~{3, 2, 1}
+      , f = LinearListInterpolation@data
+      , smm = SymmetricMinMax@data,
+      cf = ColorData[{"RedGreenSplit", smm}]
+      , dr = {{1, 1, 1}, Dimensions@data} // Transpose
+      , dp = DensityPlot3D[
+      f[x, y, z]
+      , {x, 1., 1. Dimensions[data][[1]]}, {y, 1.,
+        1. Dimensions[data][[2]]}, {z, 1., 1. Dimensions[data][[3]]}
+      , ColorFunction -> cf
+      , ColorFunctionScaling -> False
+      , PlotRange -> ({{1, 1, 1}, Dimensions[data]} // Transpose)
+      , BoxRatios -> Automatic
+    (*,OpacityFunctionScaling\[Rule]False,
+      OpacityFunction\[Rule](0.1-0.07Sign[#-contour]&)*)
+    ]
+    }~LetL~Manipulate[
+      Show[
+        Graphics3D[Point@Table[1, 3]
+          , Axes -> True
+          , AxesLabel -> $ShowDistanceField3DAxesLabel
+          , AxesOrigin -> Table[1, 3]
+          , Ticks -> (Range[#] & /@ Dimensions@data)
+        ]
+        , dp
+        , ContourPlot3D[(*WARNING this can take forever and hangs up the \
+frontend while being transmitted (wstp overhead?!)*)
+        f[x, y, z]
+        , {x, 1., 1. Dimensions[data][[1]]}, {y, 1.,
+          1. Dimensions[data][[2]]}, {z, 1., 1. Dimensions[data][[3]]}
+        , Contours -> {contour}
+        , PerformanceGoal -> "Quality"
+        , BoxRatios -> Automatic
+        , Mesh -> None
+        , ContourStyle -> {FaceForm[$ShowDistanceFieldInside,
+          $ShowDistanceFieldOutside]}(*inside-
+      outside are flipped with respect to ListContourPlot3D: bug? *)
+      (*seems nicer for small data?*)
+      ]
+      ],
+      {{contour, Max[Min@data, 0]}, Min@data, Max@data},
+      TrackedSymbols :> {contour}
+    ];
+
+Options[ShowDistanceField3DSlice] = {Method -> ListPlot,
+  PerformanceGoal -> "Speed"};
+
+(* TODO improve performance by caching slices*)
+ShowDistanceField3DSlice[data_ /; ArrayQ[data, 3, NumericQ],
+  o : OptionsPattern[]] := Manipulate[
+  Manipulate[
+    ShowDistanceField[
+      Part[data, Sequence @@ Insert[{All, All}, slice, dim]]
+      , o
+    ]
+    , {{slice, 1}, 1, Dimensions[data][[dim]], 1},
+    TrackedSymbols :> {slice}
+  ],
+  {{dim, 1}, Range@3}, TrackedSymbols :> {dim}
+]
+
+
+(* ********************* ShowDistanceField ********************* *)
+
+ClearAll@ShowDistanceField
+Options[ShowDistanceField] = {PerformanceGoal -> "Speed",
+  Method -> ListPlot};
+$ShowDistanceFieldAxesLabel = {"dim1", "dim2"}(*{"x","y"}*)
+
+ShowDistanceField[data_ /; MatrixQ[data, NumericQ], ListPlot,
+  "Speed"] := {smm = SymmetricMinMax@data,
+  cf = ColorData[{"RedGreenSplit", smm}], tdata = Transpose@data}~
+    LetL~Manipulate[
+  Show[
+    ListDensityPlot[tdata
+      , ColorFunction -> cf
+      , ColorFunctionScaling -> False
+      , DataRange -> All
+      , AspectRatio -> Automatic
+      , FrameTicks -> (Range[#] & /@ Dimensions@data)
+      , FrameLabel -> $ShowDistanceFieldAxesLabel
+    ]
+
+    , ListContourPlot[tdata
+    , Contours -> {contour}
+    , ContourShading -> None
+    , DataRange -> All
+  ]
+  ],
+  {{contour, Max[Min@data, 0]}, Min@data, Max@data},
+  TrackedSymbols :> {contour}
+]
+ShowDistanceField[data_ /; MatrixQ[data, NumericQ], ListPlot,
+  "Quality"] := {
+  smm = SymmetricMinMax@data, cf = ColorData[{"RedGreenSplit", smm}],
+  f = LinearListInterpolation@data
+}~LetL~Manipulate[
+  Show[
+    DensityPlot[
+      f[x, y]
+      , {x, 1, Dimensions[data][[1]]}, {y, 1, Dimensions[data][[2]]}
+      , ColorFunction -> cf
+      , ColorFunctionScaling -> False
+      , PlotRange -> Full
+      , AspectRatio -> Automatic
+      , FrameTicks -> (Range[#] & /@ Dimensions@data)
+      , FrameLabel -> $ShowDistanceFieldAxesLabel
+    ]
+    , ContourPlot[f[x, y]
+    , {x, 1, Dimensions[data][[1]]}, {y, 1, Dimensions[data][[2]]}
+    , Contours -> {contour}
+    , ContourShading -> None
+  ]
+  ],
+  {{contour, Max[Min@data, 0]}, Min@data, Max@data},
+  TrackedSymbols :> {contour}
+]
+
+ShowDistanceField[data_ /; MatrixQ[data, NumericQ], MatrixPlot, _] :=
+    MatrixPlot[Transpose@data
+      , ImageSize -> Medium
+      , ColorFunctionScaling -> False
+      , ColorFunction ->
+        ColorData[{"RedGreenSplit", SymmetricMinMax@data}]
+      , DataReversed -> {True, False}
+      , FrameLabel -> Reverse@$ShowDistanceFieldAxesLabel
+    ];
+
+ShowDistanceField[data_ /; MatrixQ[data, NumericQ],
+  OptionsPattern[]] :=
+    ShowDistanceField[data, OptionValue@Method,
+      OptionValue@PerformanceGoal];
+
+
+(* ********************* FullSymbolName ********************* *)
+
+LinearListInterpolation[data_ /; ArrayQ[data, _, NumericQ]] :=
+    Interpolation[
+      MapIndexed[#2~List~#1 &, data, ArrayDepth@data]~Level~{-3},
+      InterpolationOrder -> 1];
+
+DataAdjust[data_] := Rescale[data, MinMax@data];
+DataAdjustSymmetric[data_] := {smm=SymmetricMinMax@data, total=2*smm[[2]]}~LetL~(data /total +0.5);
+
+PlusMinusList@x_ := {-Abs@x, Abs@x}
+SymmetricMinMax[data_] := PlusMinusList@Max@Abs@MinMax@data
+
+ToInnerCoordinateBounds[cb : {{_Integer, _Integer}..}] := # + {1, -1} & /@ cb;
 
 DeleteIf[x_, t_] := DeleteCases[x, _?t]
 
@@ -422,11 +729,11 @@ ParseCStringSource[s_String] := StringReplace[s,
 
 Omittable[x_] := x | PatternSequence[]
 
-TaskKill[exe_String] := Echo@RunProcess[{
-  "taskkill.exe", "/im", "/f", exe
+TaskKill[exe_String] := RunProcess[{
+  "taskkill.exe",  "/f","/im",exe(*note: /im must immediately precede the image name*)
 }, "StandardOutput"]
 
-MSBuild[sln_String] := Echo@RunProcess[{
+MSBuild[sln_String] := RunProcess[{
   "C:\\Program Files (x86)\\MSBuild\\12.0\\Bin\\msbuild.exe",
   FindFile@sln, "/t:Rebuild"
 }, "StandardOutput"]
@@ -434,7 +741,11 @@ MSBuild[sln_String] := Echo@RunProcess[{
 IdentityRule[x_] := x -> x;
 
 (* avoid very large output hangups *)
-$PrePrint = If[ByteCount[#] > 10^6, Shallow[#, 1], #] &
+(*$PrePrint = If[ByteCount[#] > 10^6, Shallow[#, 1], #] &
+
+(* Causes Issues with Graphics3D, Plot3D and simple things, weird errors like 'Skeleton is not a graphics3D primitive*)
+*)
+
 
 BraceNestingDepth[s_String] := Module[{cnt, depth = 0},
   cnt["("] := ++depth;
@@ -599,7 +910,7 @@ EnsurePairs[{missing_, rest___}, val_] :=
     EnsurePairs[{rest}, val]~Prepend~{missing, val};
 EnsurePairs[x_, val_] := {{x, val}};
 
-FlatCoordinateBoundsArray[extents_List] := CoordinateBoundsArray[extents]~Flatten~(Length@extents-1);
+FlatCoordinateBoundsArray[extents_List] := CoordinateBoundsArray[extents]~Level~{-2}(*~Flatten~(Length@extents-1)*);
 
 PositionsToExpressionsOnLevel[e_, levelspec_] := Thread@Rule[
   PositionsOnLevel[e, levelspec],
@@ -688,13 +999,23 @@ IsArrayAtLevel[array_, level_Integer] := ArrayDepth@array >= level
 *)
 
 
+(* ********************* FullSymbolName ********************* *)
+
 (* TODO use a function like OptionsPattern[] or an OwnValue?*)
 AnyImagePattern[] = _Image|_Image3D;
+
+
+(* ********************* FullSymbolName ********************* *)
+
 (* if this is 0., images can be considered the same, even though they might not compare ==
  depending on how they where obtained*)
 ImageNormDifference[i1 : AnyImagePattern[], i2 : AnyImagePattern[]] := Subtract@@(Norm@*Flatten@*ImageData /@ {i1,i2});
 
+(* ********************* FullSymbolName ********************* *)
+
 HasAlphaChannel[i_] := ImageMeasurements[i, "Transparency"]
+
+(* ********************* FullSymbolName ********************* *)
 
 FirstNonNull~SetAttributes~HoldAll
 FirstNonNull[x_] := x;
@@ -702,20 +1023,30 @@ FirstNonNull[x_, rest__] := {r = x}~With~If[r =!= Null, r,
   FirstNonNull[rest]
   ];
 
+(* ********************* FullSymbolName ********************* *)
+
 AllEqual[list_List, property_] := Equal@@(property /@ list);
 AllEqual[property_] := Equal@@(property  /@ #) &;
 (* TODO instead of Equal, any operation could be used *)
+
+(* ********************* FullSymbolName ********************* *)
 
 Positions[list_List, elementsInList_List] := With[{pflist = PositionFunction@list},
   pflist /@ elementsInList
   ];
 
+(* ********************* FullSymbolName ********************* *)
+
 FlatIndexToPosition[i_Integer /; i > 0, dimensions : {__Integer}] := IntegerDigits[i-1, MixedRadix@dimensions]+1
 PositionToFlatIndex[pos : {__Integer}, dimensions : {__Integer}] := FromDigits[pos-1, MixedRadix@dimensions]+1;
 PositionToFlatIndex[pos_Integer, dimensions : {__Integer}] := {pos}~PositionToFlatIndex~dimensions;
 
+(* ********************* FullSymbolName ********************* *)
+
 RuleMap = Normal@*AssociationMap
 RuleMapIndexed[f_, list_List] := MapIndexed[list~Extract~#2 -> f@## &, list]
+
+(* ********************* FullSymbolName ********************* *)
 
 PositionFunction[list_List] := Module[{f},
   f[x_] := Missing[PositionFunction, x, "!\[Element]", Short@list]; (* TODO optimize away where it matters *)
@@ -723,29 +1054,47 @@ PositionFunction[list_List] := Module[{f},
   f
 ]
 
+(* ********************* FullSymbolName ********************* *)
+
 (* TODO support held expressions. Support Heads option? *)
 PositionsOnLevel[e_, levelspec_] := Position[e, _, levelspec, Heads->False];
+
+(* ********************* FullSymbolName ********************* *)
 
 HasOwnValue~SetAttributes~HoldAll
 HasOwnValue[x_] := Not[x === Unevaluated@x];
 
+(* ********************* FullSymbolName ********************* *)
+
 HoldFirst~SetAttributes~HoldFirst
+
+(* ********************* FullSymbolName ********************* *)
 
 ImportObjVC[file_String]:=Module[{tmp},
 tmp=Import[file,"Table"]/.{{"v",rest__}:>TakeDrop[{rest},3],{"f",rest__}:>Polygon[{rest}]};
 GraphicsComplex[Cases[tmp,m_?MatrixQ:>m[[1]]],Cases[tmp,_Polygon],VertexColors->Cases[tmp,m_?MatrixQ:>m[[-1]]]]
 ];
 
+(* ********************* FullSymbolName ********************* *)
+
 FalseQ = Not@*TrueQ;
+
+(* ********************* FullSymbolName ********************* *)
 
 (* like Do, but with the iterator first *)
 ForEach~SetAttributes~HoldAll
 ForEach[iter_, body_] := Do[body, iter];
 
+(* ********************* FullSymbolName ********************* *)
+
 MemoryBlock~SetAttributes~HoldAllComplete;
+
+(* ********************* FullSymbolName ********************* *)
 
 HasDownValues[symbolName_String] :=
     Length@CallWithUnevaluatedSymbol[DownValues, symbolName] > 0;
+
+(* ********************* FullSymbolName ********************* *)
 
 FullNames[namesPattern_String] := Block[{$Context = "temp`", $ContextPath={}},
   Names@namesPattern];
@@ -753,9 +1102,16 @@ FullNames[namesPattern_String] := Block[{$Context = "temp`", $ContextPath={}},
 FullNames[] := Block[{$Context = "temp`", $ContextPath={}},
   Names[]];
 
+
+(* ********************* FullSymbolName ********************* *)
+
 CallWithUnevaluatedSymbol[f_, symbolName_String] :=
     ToHeldExpression@symbolName /.
         Hold[s_Symbol] :> f@Unevaluated@s;
+
+
+
+(* ********************* FullSymbolName ********************* *)
 
 FullSymbolName[s_Symbol] := Context@s <> SymbolName@Unevaluated@s;
 FullSymbolName~SetAttributes~HoldAll;
@@ -889,6 +1245,9 @@ MatrixInterleave[matrices : {_?MatrixQ ..}] :=
     Transpose[matrices, {3, 1, 2}]
 
 (* ********************* ArrayInterleave ********************* *)
+
+ClearAll@ArrayInterleave
+(*ArrayInterleave[{a_}, level_Integer] := Map[List, a, {level}];*)
 
 (* Take a list of arrays and produce an array of lists *)
 ArrayInterleave[(arrays : {__}), level_Integer] /;IsArrayAtLevel[arrays, level]:=
@@ -1075,6 +1434,7 @@ ArrayReshape[v_Symbol, dims : {d_Integer, h_Integer, w_Integer}] :=
     Table[v[[(z - 1)*w*d + (y-1)*w + x]], {z, d}, {y, h}, {x, w}];
 
 Protect@ArrayReshape;
+
 
 (* ********************* RotationMatrixAxisAngleVector ********************* *)
 
