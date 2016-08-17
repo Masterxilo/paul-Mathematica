@@ -313,8 +313,16 @@ SparseArrayQ::usage = "SparseArrayQ[x] Whether x is syntactically a SparseArray"
 AllValues::usage = "AllValues[symbol] which can be given
 as a Symbol or String. Returns OwnValues, DownValues, UpValues, SubValues"
 
-OnCoordinateBoundsQ::usage = "True if the integer coordinate point is on the boundary of the integer grid
+OnCoordinateBoundsQ::usage = "True if the integer coordinate point is on the *boundary* of the integer grid
 bounded by the CoordinateBounds style {min,max} array"
+
+
+WithinCoordinateBoundsQ::usage = "True if the numeric coordinate point is within the integer grid
+bounded by the CoordinateBounds style {min,max} array"
+
+StrictlyBetween
+
+StrictlyWithinCoordinateBoundsQ
 
 LengthQ::usage = "LengthQ[v, len] Length@v === len, operator form: LengthQ[len].
 
@@ -437,11 +445,66 @@ values defined at grid points"
 
 ShowDistanceField3DSlice::usage = "Uses ShowDistanceField to interactively show only one slice at a time (in any direction) through a 3d volume"
 
+LengthOrMissing::usage = "Like Length unless the argument is Missing"
+
+(*<>=*)
+StringJoinTo::usage = "Like StringJoin but in-place"
+StringJoinToOrSet::usage = "Sets if the lhs is not yet a String"
+
+WhichDownValue::usage = "WhichDownValue[f[...]] returns the first element in DownValues@f which matches after evaluating the arguments
+ (but not f). This helps to find definitions that will be applied by evaluation."
+
+WhichDownValueRule
 (* TODO consider plotting multiple contours at once, make current contour (outlines) thick, c.f. vsfs2d *)
+
+FindMatchingDownValues::usage = "Uses Cases on DownValues of the appropriate symbol to find all definitions that apply"
+
+UnsetHeldPattern::usage = "Strips HoldPattern and Unsets"
+UnsetMatching::usage =
+    "UnsetMatchingDownValues[pat_] removes down-values whose \
+left-hand-side matches pat. Returns the patterns that where unset.
+
+You'll most likely use this with Verbatim[HoldPattern]@f[...] since all DownValues start with HoldPattern";
 
 (* ********************* --- Implementation --- ********************* *)
 
 Begin@"`Private`";
+
+UnsetHeldPattern[HoldPattern[definition_]] := (Unset[definition];definition);
+UnsetMatching[pat_] :=
+    UnsetHeldPattern /@ FindMatchingDownValues[pat]
+
+
+FindMatchingDownValues[
+  pat : Verbatim[Verbatim@HoldPattern][f_Symbol[args___]]] :=
+    Cases[First /@ DownValues@f, pat];
+
+ClearAll@WhichDownValue
+WhichDownValue~SetAttributes~HoldAll
+
+WhichDownValue[d : f_Symbol[args___]] := {eargs = {args}, hfx = Apply[Hold@f[##] &, eargs]}~LetL~
+    ReleaseHold@SelectFirst[Hold /@ First /@ DownValues@f, MatchQ[hfx, #] &, Missing["NotFound",WhichDownValue,HoldForm@d]]
+
+
+ClearAll@WhichDownValueRule
+WhichDownValueRule~SetAttributes~HoldAll
+WhichDownValueRule[d : f_Symbol[args___]] := {eargs = {args}, hfx = Apply[Hold@f[##] &, eargs]}~LetL~
+    SelectFirst[DownValues@f, MatchQ[Echo@hfx, (Hold@@List@First@#)] &, Missing["NotFound",WhichDownValueRule,HoldForm@d]]
+
+
+StringJoinTo~SetAttributes~HoldFirst
+StringJoinTo[s_, a___String] := s = s <> StringJoin[a];
+
+StringJoinTo[s_, a___String,StringRiffle->sep_String] := s = s <> sep <> StringJoin[a];
+
+
+StringJoinToOrSet~SetAttributes~HoldFirst
+StringJoinToOrSet[s_, a___String] := If[Head@s === String, StringJoinTo[s,a], s = StringJoin[a]];
+StringJoinToOrSet[s_, a___String,StringRiffle->sep_String] := If[Head@s === String, StringJoinTo[s,a,StringRiffle->sep], s = StringJoin[a]];
+
+LengthOrMissing[x_Missing] := x;
+LengthOrMissing[x_] := Length@x;
+
 
 (* ********************* ShowDistanceField3D ********************* *)
 
@@ -933,6 +996,19 @@ OnCoordinateBoundsQ[p : {__Integer},
         AllTrue[extents, Less @@ ## &] :=(*for each coordinate,
   the extents must contain it*)
     Or @@ (#1~ContainsAll~{#2} & @@@ Transpose@{extents, p}); (* TODO use AnyTrue for speedup *)
+
+WithinCoordinateBoundsQ[p : {__?NumericQ},
+  extents : {{_Integer, _Integer} ..}(*CoordinateBounds style*)] /;
+    Length@extents == Length@p &&
+        AllTrue[extents, Less @@ ## &] := And@@Table[Between[p[[i]],extents[[i]]], {i, Length@p}]
+
+StrictlyBetween[x_,{min_, max_}] := min < x < max;
+
+StrictlyWithinCoordinateBoundsQ[p : {__?NumericQ},
+  extents : {{_Integer, _Integer} ..}(*CoordinateBounds style*)] /;
+    Length@extents == Length@p &&
+        AllTrue[extents, Less @@ ## &] := And@@Table[StrictlyBetween[p[[i]],extents[[i]]], {i, Length@p}]
+
 
 AllValues[s_Symbol] :=
     Join @@ Through[{OwnValues, DownValues, UpValues, SubValues}[
