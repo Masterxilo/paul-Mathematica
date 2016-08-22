@@ -1,0 +1,535 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 10.4' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[     22797,        527]
+NotebookOptionsPosition[     22148,        500]
+NotebookOutlinePosition[     22490,        515]
+CellTagsIndexPosition[     22447,        512]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[BoxData[
+ RowBox[{"LaunchKernels", "[", "]"}]], "Input",
+ CellChangeTimes->{{3.6804392087287555`*^9, 3.6804392103850927`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  StyleBox[
+   RowBox[{"LaunchKernels", "::", "nodef"}], "MessageName"], 
+  RowBox[{
+  ":", " "}], "\<\"Some subkernels are already running. Not launching default \
+kernels again. \\!\\(\\*ButtonBox[\\\"\[RightSkeleton]\\\", \
+ButtonStyle->\\\"Link\\\", ButtonFrame->None, \
+ButtonData:>\\\"paclet:ref/LaunchKernels\\\", ButtonNote -> \
+\\\"LaunchKernels::nodef\\\"]\\)\"\>"}]], "Message", "MSG",
+ CellChangeTimes->{3.680439210744461*^9}],
+
+Cell[BoxData["$Failed"], "Output",
+ CellChangeTimes->{3.680439210744461*^9}]
+}, Open  ]],
+
+Cell[BoxData["Quit"], "Input",
+ CellChangeTimes->{{3.680514996812543*^9, 3.680514997328203*^9}}],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"Parallel`Developer`KernelStatus", "[", "]"}]], "Input",
+ CellChangeTimes->{{3.680515144154728*^9, 3.6805151509519105`*^9}}],
+
+Cell[BoxData[
+ TagBox[
+  PanelBox[
+   TagBox[GridBox[{
+      {
+       ItemBox[
+        DynamicBox[ToBoxes[
+          StringForm[
+           Parallel`Preferences`tr["StatusKernelsRunning"], 
+           Length[Parallel`Protected`$kernels], 
+           Which[Parallel`Status`Private`launching, 
+            Style[
+             StringForm[
+              Parallel`Preferences`tr["StatusKernelsLaunching"], 
+              Parallel`Kernels`Private`grandCount, 
+              Parallel`Kernels`Private`grandTotalCount], Brown], 
+            Parallel`Protected`$kernelsIdle, 
+            Style[
+             Parallel`Preferences`tr["StatusKernelsIdle"], 
+             Darker[Green]], True, 
+            Style[
+             Parallel`Preferences`tr["StatusKernelsBusy"], Red]]], 
+          StandardForm],
+         ImageSizeCache->{128., {3., 10.}}],
+        Alignment->Left,
+        StripOnInput->False], "\[SpanFromLeft]"},
+      {
+       PaneBox[
+        DynamicModuleBox[{Parallel`Status`Private`enabled$$ = True, 
+         Parallel`Status`Private`oldcpus$$ = {}, 
+         Parallel`Status`Private`oldKernelCount$$ = 3, 
+         Parallel`Status`Private`oldstate$$ = Grid[{{
+            Item[
+             Tooltip[
+              Style["ID", Bold], "kernel ID", {TooltipDelay -> Automatic}], 
+             Alignment -> {Right, Baseline}], 
+            Item[
+             Tooltip[
+              Style["Name", Bold], "kernel name", {
+              TooltipDelay -> Automatic}], Alignment -> {Left, Baseline}], 
+            Item[
+             Tooltip[
+              Style["Host", Bold], "the remote host name", {
+              TooltipDelay -> Automatic}], Alignment -> {Left, Baseline}], 
+            Item[
+             Tooltip[
+              Style["Process", Bold], "the kernel's OS process id", {
+              TooltipDelay -> Automatic}], Alignment -> {Right, Baseline}], 
+            Item[
+             Tooltip[
+              Style["CPU", Bold], "cpu time used", {
+              TooltipDelay -> Automatic}], Alignment -> {Right, Baseline}], 
+            Item[
+             Tooltip[
+              Style["RAM", Bold], "memory in use", {
+              TooltipDelay -> Automatic}], Alignment -> {Right, Baseline}], 
+            Item[
+             Tooltip[
+              Style["Version", Bold], "Mathematica version number", {
+              TooltipDelay -> Automatic}], Alignment -> {Center, Baseline}], 
+            Item[
+             Tooltip[
+              Style["Close", Bold], "close this kernel", {
+              TooltipDelay -> Automatic}], Alignment -> {Center, Baseline}], 
+            Item[
+             Tooltip[
+              Style["Busy", Bold], "Idle/Busy indicator", {
+              TooltipDelay -> Automatic}], Alignment -> {Center, Baseline}], 
+            Item[
+             Tooltip[
+              Style["Time", Bold], "CPU time used", {
+              TooltipDelay -> Automatic}], Alignment -> {Right, Baseline}], 
+            Item[
+             Tooltip[
+              Style[
+               StringForm["Elapsed: `1`s, speedup: `2`", 
+                NumberForm[0, {9, 3}], 
+                NumberForm["n/a", {3, 2}]], Bold], 
+              "Duty cycle, CPU time percentage of elapsed time", {
+              TooltipDelay -> Automatic}], Alignment -> {Left, Baseline}]}, {
+           0, "master", "paulspc", 6932, 
+            NumberForm[33.20300000000002, {9, 3}], 
+            StringForm["`1`M", 127], 
+            PaddedForm[10.4, {3, 1}], Null, Null, 
+            NumberForm[0, {6, 3}], 
+            Tooltip[
+             Graphics[{
+               GrayLevel[0], 
+               EdgeForm[
+                GrayLevel[0.5]], 
+               Rectangle[{0, 0}, {1, 0.05}, RoundingRadius -> 0.008], {
+                EdgeForm[], 
+                RGBColor[0, 1, 0], 
+                Rectangle[{0, 0.008}, {0, 0.042}]}}, ImageSize -> 200, 
+              BaselinePosition -> Scaled[0.2]], 
+             StringForm["`1`%", 
+              NumberForm[0, {4, 1}]]]}, {9, "local", "paulspc", 8080, 
+            NumberForm[0.985, {9, 3}], 
+            StringForm["`1`M", 46], 
+            PaddedForm[10.4, {3, 1}], 
+            Button["X", 
+             CloseKernels[
+              Parallel`Kernels`kernel[
+               Parallel`Kernels`Private`bk[
+                SubKernels`LocalKernels`localKernel[
+                 SubKernels`LocalKernels`Private`lk[
+                  LinkObject[
+                  "\"C:\\Program Files\\Wolfram \
+Research\\Mathematica\\10.4\\WolframKernel.exe\" -subkernel -noinit -wstp \
+-noicon", 17571, 4], {
+                  "\"C:\\Program Files\\Wolfram \
+Research\\Mathematica\\10.4\\WolframKernel.exe\" -subkernel -noinit -wstp \
+-noicon", SubKernels`LocalKernels`LowerPriority -> True, KernelSpeed -> 1}, 
+                  SubKernels`LocalKernels`Private`speed$913623, 
+                  SubKernels`LocalKernels`Private`preemptive$913623]], 
+                Parallel`Kernels`Private`id$913857, 
+                Parallel`Kernels`Private`name$913857], 
+               Parallel`Kernels`Private`ek[
+               Parallel`Kernels`Private`nev$913859, 
+                Parallel`Kernels`Private`pb$913859, 
+                Parallel`Kernels`Private`rd$913859], 
+               Parallel`Kernels`Private`sk[
+               Parallel`Kernels`Private`q$913861, 
+                Parallel`Kernels`Private`n0$913861, 
+                Parallel`Kernels`Private`n1$913861]]], 
+             ImageSize -> {Automatic, Small}], 
+            Style["\[FilledCircle]", FontColor -> Dynamic[
+               If[Parallel`Developer`EvaluationCount[
+                  Parallel`Kernels`kernel[
+                   Parallel`Kernels`Private`bk[
+                    SubKernels`LocalKernels`localKernel[
+                    SubKernels`LocalKernels`Private`lk[
+                    LinkObject[
+                    "\"C:\\Program Files\\Wolfram Research\\Mathematica\\10.4\
+\\WolframKernel.exe\" -subkernel -noinit -wstp -noicon", 17571, 4], {
+                    "\"C:\\Program Files\\Wolfram Research\\Mathematica\\10.4\
+\\WolframKernel.exe\" -subkernel -noinit -wstp -noicon", 
+                    SubKernels`LocalKernels`LowerPriority -> True, 
+                    KernelSpeed -> 1}, 
+                    SubKernels`LocalKernels`Private`speed$913623, 
+                    SubKernels`LocalKernels`Private`preemptive$913623]], 
+                    Parallel`Kernels`Private`id$913857, 
+                    Parallel`Kernels`Private`name$913857], 
+                   Parallel`Kernels`Private`ek[
+                   Parallel`Kernels`Private`nev$913859, 
+                    Parallel`Kernels`Private`pb$913859, 
+                    Parallel`Kernels`Private`rd$913859], 
+                   Parallel`Kernels`Private`sk[
+                   Parallel`Kernels`Private`q$913861, 
+                    Parallel`Kernels`Private`n0$913861, 
+                    Parallel`Kernels`Private`n1$913861]]] > 0, Red, 
+                Darker[Green]]]], 
+            NumberForm[0, {6, 3}], 
+            Tooltip[
+             Graphics[{
+               GrayLevel[0], 
+               EdgeForm[
+                GrayLevel[0.5]], 
+               Rectangle[{0, 0}, {1, 0.05}, RoundingRadius -> 0.008], {
+                EdgeForm[], 
+                RGBColor[0, 1, 0], 
+                Rectangle[{0, 0.008}, {0, 0.042}]}}, ImageSize -> 200, 
+              BaselinePosition -> Scaled[0.2]], 
+             StringForm["`1`%", 
+              NumberForm[0, {4, 1}]]]}, {10, "local", "paulspc", 11424, 
+            NumberForm[5.672, {9, 3}], 
+            StringForm["`1`M", 93], 
+            PaddedForm[10.4, {3, 1}], 
+            Button["X", 
+             CloseKernels[
+              Parallel`Kernels`kernel[
+               Parallel`Kernels`Private`bk[
+                SubKernels`LocalKernels`localKernel[
+                 SubKernels`LocalKernels`Private`lk[
+                  LinkObject[
+                  "\"C:\\Program Files\\Wolfram \
+Research\\Mathematica\\10.4\\WolframKernel.exe\" -subkernel -noinit -wstp \
+-noicon", 18226, 5], {
+                  "\"C:\\Program Files\\Wolfram \
+Research\\Mathematica\\10.4\\WolframKernel.exe\" -subkernel -noinit -wstp \
+-noicon", SubKernels`LocalKernels`LowerPriority -> True, KernelSpeed -> 1}, 
+                  SubKernels`LocalKernels`Private`speed$915058, 
+                  SubKernels`LocalKernels`Private`preemptive$915058]], 
+                Parallel`Kernels`Private`id$915251, 
+                Parallel`Kernels`Private`name$915251], 
+               Parallel`Kernels`Private`ek[
+               Parallel`Kernels`Private`nev$915252, 
+                Parallel`Kernels`Private`pb$915252, 
+                Parallel`Kernels`Private`rd$915252], 
+               Parallel`Kernels`Private`sk[
+               Parallel`Kernels`Private`q$915254, 
+                Parallel`Kernels`Private`n0$915254, 
+                Parallel`Kernels`Private`n1$915254]]], 
+             ImageSize -> {Automatic, Small}], 
+            Style["\[FilledCircle]", FontColor -> Dynamic[
+               If[Parallel`Developer`EvaluationCount[
+                  Parallel`Kernels`kernel[
+                   Parallel`Kernels`Private`bk[
+                    SubKernels`LocalKernels`localKernel[
+                    SubKernels`LocalKernels`Private`lk[
+                    LinkObject[
+                    "\"C:\\Program Files\\Wolfram Research\\Mathematica\\10.4\
+\\WolframKernel.exe\" -subkernel -noinit -wstp -noicon", 18226, 5], {
+                    "\"C:\\Program Files\\Wolfram Research\\Mathematica\\10.4\
+\\WolframKernel.exe\" -subkernel -noinit -wstp -noicon", 
+                    SubKernels`LocalKernels`LowerPriority -> True, 
+                    KernelSpeed -> 1}, 
+                    SubKernels`LocalKernels`Private`speed$915058, 
+                    SubKernels`LocalKernels`Private`preemptive$915058]], 
+                    Parallel`Kernels`Private`id$915251, 
+                    Parallel`Kernels`Private`name$915251], 
+                   Parallel`Kernels`Private`ek[
+                   Parallel`Kernels`Private`nev$915252, 
+                    Parallel`Kernels`Private`pb$915252, 
+                    Parallel`Kernels`Private`rd$915252], 
+                   Parallel`Kernels`Private`sk[
+                   Parallel`Kernels`Private`q$915254, 
+                    Parallel`Kernels`Private`n0$915254, 
+                    Parallel`Kernels`Private`n1$915254]]] > 0, Red, 
+                Darker[Green]]]], 
+            NumberForm[0, {6, 3}], 
+            Tooltip[
+             Graphics[{
+               GrayLevel[0], 
+               EdgeForm[
+                GrayLevel[0.5]], 
+               Rectangle[{0, 0}, {1, 0.05}, RoundingRadius -> 0.008], {
+                EdgeForm[], 
+                RGBColor[0, 1, 0], 
+                Rectangle[{0, 0.008}, {0, 0.042}]}}, ImageSize -> 200, 
+              BaselinePosition -> Scaled[0.2]], 
+             StringForm["`1`%", 
+              NumberForm[0, {4, 1}]]]}, {12, "local", "paulspc", 10676, 
+            NumberForm[0.2810000000000059, {9, 3}], 
+            StringForm["`1`M", 101], 
+            PaddedForm[10.4, {3, 1}], 
+            Button["X", 
+             CloseKernels[
+              Parallel`Kernels`kernel[
+               Parallel`Kernels`Private`bk[
+                SubKernels`LocalKernels`localKernel[
+                 SubKernels`LocalKernels`Private`lk[
+                  LinkObject[
+                  "\"C:\\Program Files\\Wolfram \
+Research\\Mathematica\\10.4\\WolframKernel.exe\" -subkernel -noinit -wstp \
+-noicon", 18542, 7], {
+                  "\"C:\\Program Files\\Wolfram \
+Research\\Mathematica\\10.4\\WolframKernel.exe\" -subkernel -noinit -wstp \
+-noicon", SubKernels`LocalKernels`LowerPriority -> True, KernelSpeed -> 1, 
+                   KernelSpeed -> 1, KernelSpeed -> 1, KernelSpeed -> 1, 
+                   KernelSpeed -> 1}, 
+                  SubKernels`LocalKernels`Private`speed$917556, 
+                  SubKernels`LocalKernels`Private`preemptive$917556]], 
+                Parallel`Kernels`Private`id$917769, 
+                Parallel`Kernels`Private`name$917769], 
+               Parallel`Kernels`Private`ek[
+               Parallel`Kernels`Private`nev$917770, 
+                Parallel`Kernels`Private`pb$917770, 
+                Parallel`Kernels`Private`rd$917770], 
+               Parallel`Kernels`Private`sk[
+               Parallel`Kernels`Private`q$917771, 
+                Parallel`Kernels`Private`n0$917771, 
+                Parallel`Kernels`Private`n1$917771]]], 
+             ImageSize -> {Automatic, Small}], 
+            Style["\[FilledCircle]", FontColor -> Dynamic[
+               If[Parallel`Developer`EvaluationCount[
+                  Parallel`Kernels`kernel[
+                   Parallel`Kernels`Private`bk[
+                    SubKernels`LocalKernels`localKernel[
+                    SubKernels`LocalKernels`Private`lk[
+                    LinkObject[
+                    "\"C:\\Program Files\\Wolfram Research\\Mathematica\\10.4\
+\\WolframKernel.exe\" -subkernel -noinit -wstp -noicon", 18542, 7], {
+                    "\"C:\\Program Files\\Wolfram Research\\Mathematica\\10.4\
+\\WolframKernel.exe\" -subkernel -noinit -wstp -noicon", 
+                    SubKernels`LocalKernels`LowerPriority -> True, 
+                    KernelSpeed -> 1, KernelSpeed -> 1, KernelSpeed -> 1, 
+                    KernelSpeed -> 1, KernelSpeed -> 1}, 
+                    SubKernels`LocalKernels`Private`speed$917556, 
+                    SubKernels`LocalKernels`Private`preemptive$917556]], 
+                    Parallel`Kernels`Private`id$917769, 
+                    Parallel`Kernels`Private`name$917769], 
+                   Parallel`Kernels`Private`ek[
+                   Parallel`Kernels`Private`nev$917770, 
+                    Parallel`Kernels`Private`pb$917770, 
+                    Parallel`Kernels`Private`rd$917770], 
+                   Parallel`Kernels`Private`sk[
+                   Parallel`Kernels`Private`q$917771, 
+                    Parallel`Kernels`Private`n0$917771, 
+                    Parallel`Kernels`Private`n1$917771]]] > 0, Red, 
+                Darker[Green]]]], 
+            NumberForm[0, {6, 3}], 
+            Tooltip[
+             Graphics[{
+               GrayLevel[0], 
+               EdgeForm[
+                GrayLevel[0.5]], 
+               Rectangle[{0, 0}, {1, 0.05}, RoundingRadius -> 0.008], {
+                EdgeForm[], 
+                RGBColor[0, 1, 0], 
+                Rectangle[{0, 0.008}, {0, 0.042}]}}, ImageSize -> 200, 
+              BaselinePosition -> Scaled[0.2]], 
+             StringForm["`1`%", 
+              NumberForm[0, {4, 1}]]]}}, ItemSize -> Full, Frame -> True, 
+          Dividers -> {{
+            2 -> True, 3 -> GrayLevel[0.5], 8 -> True, 9 -> True}, {
+            2 -> True, 3 -> GrayLevel[0.5]}}, 
+          Alignment -> {{
+            Right, Left, Left, Right, Right, Right, Center, Center, Center, 
+             Right, Left}}]}, 
+         DynamicBox[ToBoxes[
+           Refresh[
+           Parallel`Status`Private`doRefresh; 
+            Parallel`Status`Private`propGrid[
+             Parallel`Status`Private`enabled$$, 
+              Parallel`Status`Private`oldcpus$$, 
+              Parallel`Status`Private`oldKernelCount$$, 
+              Parallel`Status`Private`oldstate$$], 
+            TrackedSymbols :> {
+             Parallel`Protected`$kernels, Parallel`Protected`$kernelsIdle, 
+              Parallel`Status`Private`doRefresh, 
+              Parallel`Debug`Perfmon`subCPUs, 
+              Parallel`Status`Private`localColumns, 
+              Parallel`Status`Private`remoteColumns, 
+              Parallel`Status`Private`controlColumns, 
+              Parallel`Status`Private`perfcol, 
+              Parallel`Status`Private`perfAuto}], StandardForm],
+          ImageSizeCache->{661., {55., 62.}},
+          SynchronousUpdating->True],
+         DynamicModuleValues:>{}],
+        Scrollbars->Automatic], "\[SpanFromLeft]"},
+      {
+       ItemBox[
+        TemplateBox[{ButtonBox[
+           DynamicBox[
+            ToBoxes[
+             If[$KernelCount === 0, 
+              Parallel`Preferences`tr["StatusKernelsLaunchAll"], 
+              Parallel`Preferences`tr["StatusKernelsCloseAll"]], 
+             StandardForm]], ButtonFunction :> 
+           Parallel`Status`Private`buttonStartStop[], Method -> "Queued", 
+           Enabled -> Dynamic[
+             Not[Parallel`Status`Private`launching]], ImageSize -> All, 
+           Appearance -> Automatic, Evaluator -> Automatic],DynamicBox[
+           ToBoxes[If[
+              And[
+              Parallel`Status`Private`shouldAutolaunch, $KernelCount == 0], 
+              Parallel`Status`Private`shouldAutolaunch = False; 
+              FinishDynamic[]; Parallel`Status`Private`protectedLaunch[]]; "",
+             StandardForm], 
+           TrackedSymbols :> {Parallel`Status`Private`shouldAutolaunch}, 
+           SynchronousUpdating -> False, ImageSizeCache -> {0., {0., 7.}}]},
+         "RowDefault"],
+        Alignment->Left,
+        StripOnInput->False], 
+       ItemBox[
+        TemplateBox[{
+         ButtonBox[
+          "\"Select Columns...\"", ButtonFunction :> 
+           Parallel`Status`Private`buttonColumns[], ImageSize -> All, 
+           Appearance -> Automatic, Evaluator -> Automatic, Method -> 
+           "Preemptive"],ButtonBox[
+          "\"Kernel Configuration...\"", ButtonFunction :> 
+           Parallel`Palette`buttonConfigure[], ImageSize -> All, Appearance -> 
+           Automatic, Evaluator -> Automatic, Method -> "Preemptive"]},
+         "RowDefault"],
+        Alignment->Right,
+        StripOnInput->False]}
+     },
+     AutoDelete->False,
+     GridBoxItemSize->{"Columns" -> {{All}}, "Rows" -> {{All}}},
+     GridBoxSpacings->{"Columns" -> {{0}}, "Rows" -> {{0.5}}}],
+    "Grid"]],
+  Deploy,
+  DefaultBaseStyle->"Deploy"]], "Output",
+ CellChangeTimes->{3.6805151529206915`*^9}]
+}, Open  ]],
+
+Cell[BoxData["Quit"], "Input",
+ CellChangeTimes->{{3.6805170901356754`*^9, 3.680517090588834*^9}}],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", "paul`ShowDistanceField3D", "]"}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{"<<", "paul`"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"m", "=", 
+   RowBox[{"RandomReal", "[", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"-", "1"}], ",", "1"}], "}"}], ",", 
+     RowBox[{"Table", "[", 
+      RowBox[{"12", ",", "3"}], "]"}]}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{"ShowDistanceField3D", "[", "m", "]"}]}], "Input",
+ CellChangeTimes->{{3.680437956692383*^9, 3.680437997982579*^9}, {
+   3.6804430754975033`*^9, 3.680443081038399*^9}, {3.680443499290556*^9, 
+   3.6804435013280983`*^9}, {3.680462961301404*^9, 3.6804629650202603`*^9}, {
+   3.6804631316520195`*^9, 3.68046313519904*^9}, {3.6805163291619253`*^9, 
+   3.6805163369282722`*^9}, 3.680517050366289*^9, 3.6805171669050283`*^9, 
+   3.6805173990046425`*^9, {3.6805174880766687`*^9, 3.680517491184491*^9}}],
+
+Cell[BoxData[
+ FrameBox[
+  TagBox[GridBox[{
+     {
+      RowBox[{"{", 
+       RowBox[{"\<\"contour\"\>", ",", 
+        SliderBox[Dynamic[
+         paul`Private`contour$375885, {(paul`Private`contour$375885 = #; 
+           paul`Private`realTimeUpdateContourPlot[]; Null)& , (
+           paul`Private`contour$375885 = #; 
+           paul`Private`realTimeUpdateContourPlot[]; 
+           paul`Private`contourPlotPlaceholderUpdate$375860[]; Null)& }, 
+          TrackedSymbols :> {
+           paul`Private`contour$375885}], {-0.9972755842071797, 
+         0.9985679382054964}], ",", 
+        DynamicBox[ToBoxes[paul`Private`contour$375885, StandardForm],
+         ImageSizeCache->{16., {0., 8.}}]}], "}"}]},
+     {
+      DynamicBox[ToBoxes[
+        Show[
+         Graphics3D[
+          Point[
+           Table[1, 3]], Axes -> True, AxesLabel -> 
+          paul`Private`$ShowDistanceField3DAxesLabel, AxesOrigin -> 
+          Table[1, 3], Ticks -> Map[Range[#]& , 
+            Dimensions[paul`Private`data$375860]], PlotRange -> Transpose[{
+             Table[1, 3], 
+             Dimensions[paul`Private`data$375860]}], BoxRatios -> Automatic], 
+         paul`Private`densityPlotPlaceholder$375860, 
+         paul`Private`contourPlotPlaceholder$375860], StandardForm],
+       ImageSizeCache->{180., {88., 94.}},
+       TrackedSymbols:>{
+        paul`Private`contourPlotPlaceholder$375860, 
+         paul`Private`densityPlotPlaceholder$375860}]}
+    },
+    DefaultBaseStyle->"Column",
+    GridBoxAlignment->{"Columns" -> {{Left}}},
+    GridBoxItemSize->{"Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}],
+   "Column"],
+  StripOnInput->False]], "Output",
+ CellChangeTimes->{3.680517494653737*^9}]
+}, Open  ]]
+},
+WindowSize->{1196, 991},
+WindowMargins->{{0, Automatic}, {Automatic, 0}},
+FrontEndVersion->"10.4 for Microsoft Windows (64-bit) (April 11, 2016)",
+StyleDefinitions->"Default.nb"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 131, 2, 31, "Input"],
+Cell[714, 26, 462, 10, 22, "Message"],
+Cell[1179, 38, 76, 1, 31, "Output"]
+}, Open  ]],
+Cell[1270, 42, 96, 1, 31, "Input"],
+Cell[CellGroupData[{
+Cell[1391, 47, 147, 2, 31, "Input"],
+Cell[1541, 51, 17807, 375, 207, "Output"]
+}, Open  ]],
+Cell[19363, 429, 98, 1, 31, "Input"],
+Cell[CellGroupData[{
+Cell[19486, 434, 948, 21, 92, "Input"],
+Cell[20437, 457, 1695, 40, 238, "Output"]
+}, Open  ]]
+}
+]
+*)
+

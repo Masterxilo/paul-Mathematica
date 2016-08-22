@@ -53,6 +53,7 @@ BeginPackage["paul`",  {"BoolEval`"}];
 
 ClearAll@"paul`*";
 
+ListOfHoldToHold::usage = "turns {Hold[Plus], Hold[x]} into Hold[Plus, x]"
 AllEqual::usage = "AllEqual[list, property] check whether applying property to each element of list
 yields elements which are Equal.
 Equal@@(property  /@ list)
@@ -306,7 +307,17 @@ UnprotectClearAll::usage = "Like ClearAll, but works with Protected symbols"
 AsynchronousEvaluate::usage = "AsynchronousEvaluate[expr_] Uses ParallelSubmit to evaluate expr in another kernel (not
 the same as evaluating in a subsession), returning an object that is replaced with the output once it is available.
 
-Use SetSharedVariable[s] on results that you need."
+Use SetSharedVariable[s] on results that you need.
+
+the result of this must be displayed for the computation to be executed and whenDone to be run (in the main kernel)"
+
+(*ParallelSubmit & Parallel`Developer` utilities*)
+ParallelSubmitFinishedQ;
+ParallelSubmitGet;
+
+ParallelSubmitPlaceholder::usage = "Makes o point to a variable that \
+is set to the result of evaluating expr once available and is set to \
+placeholder before"
 
 SparseArrayQ::usage = "SparseArrayQ[x] Whether x is syntactically a SparseArray"
 
@@ -341,8 +352,16 @@ EchoBeforeAfter::usage = "Like echo, but prints the unevaluated expression befor
 
 HasDuplicateQ::usage = "negation of DuplicateFreeQ"
 
-AtomsMatching::usage = "AtomsMatching[e, pat] returns all atoms (level {-1}) matching the given pattern"
+AtomsMatching::usage = "AtomsMatching[e, pat] returns all atoms (level {-1}) matching the given pattern
+
+
+Accepts Heads (default False)"
+
+HeldAtomsMatching
+
 SymbolAtoms::usage = "AtomsMatching[e, _Symbol]"
+HeldSymbolAtoms::usage = "AtomsMatching[e, _Symbol]"
+
 
 SeriesExtractDerivatives::usage = "for every f and n,
 
@@ -466,9 +485,62 @@ left-hand-side matches pat. Returns the patterns that where unset.
 
 You'll most likely use this with Verbatim[HoldPattern]@f[...] since all DownValues start with HoldPattern";
 
+
+EchoWithAbsoluteTiming
+EchoUnevaluatedWithAbsoluteTiming
+
+ParallelSubmitPlaceholderMultiple
+
+
+EvaluatingCell
+
+StringSelect
+
+StringSplitOp (*operator form*)
 (* ********************* --- Implementation --- ********************* *)
 
 Begin@"`Private`";
+
+(*
+Unprotect@StringSplit
+Protect@StringSplit
+*) (* does not work?*)
+StringSplitOp[delim__] := StringSplit[#, delim]&;
+
+StringSelect[a_, pat_] := Select[a, StringMatchQ[#, pat]&];
+
+EvaluatingCell[] := EvaluationCell[] // NotebookRead
+
+
+ParallelSubmitPlaceholder~SetAttributes~HoldAll
+
+(*Returns the EvaluationObject created by ParallelSubmit *)
+ParallelSubmitPlaceholder[o_Symbol, expr_] := Module[
+  {w,dummy},
+  Assert[$SharedVariables ~ Contains ~ Hold[o]];
+  w = ParallelSubmit[o = expr];
+  Parallel`Developer`QueueRun[];
+  Assert[Head@w === EvaluationObject];
+  w
+];
+
+(*Returns the list of EvaluationObject created by ParallelSubmit
+
+o must be sharedvariable*)
+ParallelSubmitPlaceholderMultiple~SetAttributes~HoldAll
+ParallelSubmitPlaceholderMultiple[o_Symbol, exprs : {__}] := Map[
+  Function[expr, ParallelSubmitPlaceholder[o, expr], HoldAll],
+  Unevaluated@exprs (*! unev*)
+]
+
+EchoWithAbsoluteTiming~SetAttributes~HoldAll
+EchoWithAbsoluteTiming[x_] := {t = AbsoluteTiming@x}~With~(Echo[Short@Last@t, First@t~Quantity~"Seconds"]; Last@t)
+
+
+EchoUnevaluatedWithAbsoluteTiming~SetAttributes~HoldAll
+EchoUnevaluatedWithAbsoluteTiming[x_] := {t = AbsoluteTiming@x}~With~(Echo[Short@HoldForm@x, First@t~Quantity~"Seconds"]; Last@t)
+
+
 
 UnsetHeldPattern[HoldPattern[definition_]] := (Unset[definition];definition);
 UnsetMatching[pat_] :=
@@ -481,16 +553,27 @@ FindMatchingDownValues[
 
 ClearAll@WhichDownValue
 WhichDownValue~SetAttributes~HoldAll
-
-WhichDownValue[d : f_Symbol[args___]] := {eargs = {args}, hfx = Apply[Hold@f[##] &, eargs]}~LetL~
-    ReleaseHold@SelectFirst[Hold /@ First /@ DownValues@f, MatchQ[hfx, #] &, Missing["NotFound",WhichDownValue,HoldForm@d]]
-
-
 ClearAll@WhichDownValueRule
 WhichDownValueRule~SetAttributes~HoldAll
-WhichDownValueRule[d : f_Symbol[args___]] := {eargs = {args}, hfx = Apply[Hold@f[##] &, eargs]}~LetL~
-    SelectFirst[DownValues@f, MatchQ[Echo@hfx, (Hold@@List@First@#)] &, Missing["NotFound",WhichDownValueRule,HoldForm@d]]
 
+WhichDownValueRule[d : f_Symbol[args___]] := Module[{dummyHead,
+  evaluatedArguments, x},
+    dummyHead~SetAttributes~Attributes@f;
+    evaluatedArguments = Echo@dummyHead[args];
+
+    With[
+      {hfx = Echo[evaluatedArguments /. dummyHead[eargs__] -> Hold@f[eargs]]}
+
+    , ReleaseHold@
+        SelectFirst[
+             (Hold /@ #)& /@ DownValues@f, MatchQ[hfx, First@#] &
+          , Missing["NotFound",WhichDownValueRule,HoldForm@d]
+        ]
+    ]
+  ];
+
+
+WhichDownValue[d : f_Symbol[args___]] := First@WhichDownValueRule@d;
 
 StringJoinTo~SetAttributes~HoldFirst
 StringJoinTo[s_, a___String] := s = s <> StringJoin[a];
@@ -510,6 +593,13 @@ LengthOrMissing[x_] := Length@x;
 
 Options[ShowDistanceField3D] = {Method -> ListPlot,
   PerformanceGoal -> "Speed"};
+
+
+ShowDistanceField3D[data_ /; ArrayQ[data, 3, NumericQ],
+  OptionsPattern[]] :=
+    ShowDistanceField3D[data, OptionValue@Method,
+      OptionValue@PerformanceGoal];
+
 $ShowDistanceField3DAxesLabel = {"dim1", "dim2",
   "dim3"}(*{"x","y","z"}*)
 $ShowDistanceFieldInside = ColorData["RedGreenSplit"]@0;
@@ -532,140 +622,183 @@ ShowDistanceField3D[data_ /; ArrayQ[data, 3, NumericQ],
       Transpose)
 ]
 
-ShowDistanceField3D[data_ /; ArrayQ[data, 3, NumericQ],
-  OptionsPattern[]] :=
-    ShowDistanceField3D[data, OptionValue@Method,
-      OptionValue@PerformanceGoal];
+ShowDistanceField3D[idata_ /; ArrayQ[idata, 3, NumericQ], ListPlot,_] :=
+    Module[{
+      data = idata,
+      contourPlotPlaceholder,
+      densityPlotPlaceholder,
+      densityPlotPlaceholderUpdate,
+      contourPlotPlaceholderUpdate,
+      f = LinearListInterpolation@idata,
+      contour,
+      lowQualityContourPlot,
+      tdata
+    },
 
-ShowDistanceField3D[data_ /; ArrayQ[data, 3, NumericQ], ListPlot,
-  "Speed"] := {
-  smm = SymmetricMinMax@data, cf = ColorData[{"RedGreenSplit", smm}]
-  , tdata = data~Transpose~{3, 2, 1}
-  , dr = {{1, 1, 1}, Dimensions@data} // Transpose
-  , dp = ListDensityPlot3D[tdata
-    , ColorFunction -> cf
-    , ColorFunctionScaling -> False
-    , DataRange -> dr
-    , BoxRatios -> Automatic
-  ]
-  , ticks = (Range[#] & /@ Dimensions@data)
-  , lpg =
-      If[Max@Dimensions@data < 20,
-        "Quality"(*seems faster (less polygons) for small data?
-     swapped labels?*), "Speed"]
-  , g3d = Graphics3D[Point@Table[1, 3]
-    , Axes -> True
-    , AxesLabel -> $ShowDistanceField3DAxesLabel
-    , AxesOrigin -> Table[1, 3]
-    , Ticks -> ticks
-  ]
-}~LetL~Manipulate[
-  Show[
-    g3d
-    , dp
-    , ListContourPlot3D[tdata
-    , Contours -> {contour}
-    , DataRange -> dr
-    , BoxRatios -> Automatic
-    , PerformanceGoal -> lpg
-    , Mesh -> None
-    , ContourStyle -> {FaceForm[$ShowDistanceFieldOutside,
-      $ShowDistanceFieldInside]}
-  ]
-  ],
-  {{contour, Max[Min@data, 0]}, Min@data, Max@data},
-  TrackedSymbols :> {contour}
-]
-
-ShowDistanceField3D[data_ /; ArrayQ[data, 3, NumericQ], ListPlot,
-  "Quality"] := {
-  f = LinearListInterpolation@data
-  , tdata = data~Transpose~{3, 2, 1}
-  , smm = SymmetricMinMax@data, cf = ColorData[{"RedGreenSplit", smm}]
-  , dr = {{1, 1, 1}, Dimensions@data} // Transpose
-  , dp = DensityPlot3D[
-    f[x, y, z]
-    , {x, 1, Dimensions[data][[1]]}, {y, 1,
-      Dimensions[data][[2]]}, {z, 1, Dimensions[data][[3]]}
-    , ColorFunction -> cf
-    , ColorFunctionScaling -> False
-    , PlotRange -> ({{1, 1, 1}, Dimensions[data]} // Transpose)
-    , BoxRatios -> Automatic
-  (*,OpacityFunctionScaling\[Rule]False,
-     OpacityFunction\[Rule](0.1-0.07Sign[#-contour]&)*)
-  ]
-}~LetL~Manipulate[
-  Show[
-    Graphics3D[Point@Table[1, 3]
-      , Axes -> True
-      , AxesLabel -> $ShowDistanceField3DAxesLabel
-      , AxesOrigin -> Table[1, 3]
-      , Ticks -> (Range[#] & /@ Dimensions@data)
-    ]
-    , dp
-    , ListContourPlot3D[tdata
-    , Contours -> {contour}
-    , DataRange -> dr
-    , PerformanceGoal ->
-        If[Max@Dimensions@data < 20, "Speed", "Quality"]
-    , BoxRatios -> Automatic
-    , Mesh -> None
-    , ContourStyle -> {FaceForm[$ShowDistanceFieldOutside,
-      $ShowDistanceFieldInside]}
-  (*seems nicer for small data?*)
-  ]
-  ],
-  {{contour, Max[Min@data, 0]}, Min@data, Max@data},
-  TrackedSymbols :> {contour}
-]
-
-(*WARNING: not much better than Quality but much slower, use only for \
-Print*)
-ShowDistanceField3D[data_ /; ArrayQ[data, 3, NumericQ], ListPlot,
-  "HighQuality"] :=
-    {tdata = data~Transpose~{3, 2, 1}
-      , f = LinearListInterpolation@data
-      , smm = SymmetricMinMax@data,
-      cf = ColorData[{"RedGreenSplit", smm}]
+    {
+      smm = SymmetricMinMax@data
+      , cf = ColorData[{"RedGreenSplit", smm}]
       , dr = {{1, 1, 1}, Dimensions@data} // Transpose
-      , dp = DensityPlot3D[
-      f[x, y, z]
-      , {x, 1., 1. Dimensions[data][[1]]}, {y, 1.,
-        1. Dimensions[data][[2]]}, {z, 1., 1. Dimensions[data][[3]]}
-      , ColorFunction -> cf
-      , ColorFunctionScaling -> False
-      , PlotRange -> ({{1, 1, 1}, Dimensions[data]} // Transpose)
-      , BoxRatios -> Automatic
-    (*,OpacityFunctionScaling\[Rule]False,
-      OpacityFunction\[Rule](0.1-0.07Sign[#-contour]&)*)
-    ]
-    }~LetL~Manipulate[
-      Show[
-        Graphics3D[Point@Table[1, 3]
-          , Axes -> True
-          , AxesLabel -> $ShowDistanceField3DAxesLabel
-          , AxesOrigin -> Table[1, 3]
-          , Ticks -> (Range[#] & /@ Dimensions@data)
-        ]
-        , dp
-        , ContourPlot3D[(*WARNING this can take forever and hangs up the \
-frontend while being transmitted (wstp overhead?!)*)
+      , memoryConstraint = 10^6 * 800 (* high quality seems to need lots of memory *)
+      , realTimeConstraint = 1./60
+    }~LetL~(
+      Quiet@AbortKernels[]; (* ensure SetSharedVariable succeeds and doesn't hang anything up *)
+
+      tdata = data~Transpose~{3, 2, 1};
+      contour = Max[Min@data, 0.];
+
+      densityPlotPlaceholder = Graphics3D[];
+      contourPlotPlaceholder = Graphics3D[];
+
+      (* read-write/dynamically changing *)
+      SetSharedVariable[densityPlotPlaceholder];
+      SetSharedVariable[contourPlotPlaceholder];
+      SetSharedVariable[contour];
+
+      lowQualityContourPlot[] := MemoryConstrained[ListContourPlot3D[tdata
+        , Contours -> {contour}
+        , DataRange -> dr
+        , PerformanceGoal -> "Quality"
+        , BoxRatios -> Automatic
+        , Mesh -> None
+        , ContourStyle -> {FaceForm[$ShowDistanceFieldOutside,$ShowDistanceFieldInside]}
+      ], memoryConstraint, contourPlotPlaceholder];
+
+      mediumQualityContourPlot[] := MemoryConstrained[ListContourPlot3D[tdata
+        , Contours -> {contour}
+        , DataRange -> dr
+        , PerformanceGoal -> "Speed"
+        , BoxRatios -> Automatic
+        , Mesh -> None
+        , ContourStyle -> {FaceForm[$ShowDistanceFieldOutside, $ShowDistanceFieldInside]}
+      ], memoryConstraint, contourPlotPlaceholder];
+
+      highQualityContourPlot[] := MemoryConstrained[ContourPlot3D[
         f[x, y, z]
         , {x, 1., 1. Dimensions[data][[1]]}, {y, 1.,
           1. Dimensions[data][[2]]}, {z, 1., 1. Dimensions[data][[3]]}
         , Contours -> {contour}
-        , PerformanceGoal -> "Quality"
+        , PerformanceGoal -> "Quality" (* not different from ListContourPlot3D with Speed*)
         , BoxRatios -> Automatic
         , Mesh -> None
         , ContourStyle -> {FaceForm[$ShowDistanceFieldInside,
           $ShowDistanceFieldOutside]}(*inside-
-      outside are flipped with respect to ListContourPlot3D: bug? *)
-      (*seems nicer for small data?*)
-      ]
-      ],
-      {{contour, Max[Min@data, 0]}, Min@data, Max@data},
-      TrackedSymbols :> {contour}
-    ];
+          outside are flipped with respect to ListContourPlot3D: bug? *)
+      ], memoryConstraint, contourPlotPlaceholder];
+
+      (* read-only constant *)
+      DistributeDefinitions[$ShowDistanceFieldInside, $ShowDistanceFieldOutside, highQualityContourPlot, mediumQualityContourPlot, f, tdata, data, lowQualityContourPlot];
+
+      contourPlotPlaceholderUpdate[] := contourPlotPlaceholder~ParallelSubmitPlaceholderMultiple~
+          {
+
+          (*lowest*)
+            (
+            computedContour = contour;
+            result = lowQualityContourPlot[];
+            If[contour === computedContour, result, contourPlotPlaceholder]
+            )
+
+          ,(*lower*)
+            (
+            computedContour = contour;
+
+            result = mediumQualityContourPlot[];
+
+            If[contour === computedContour, result, contourPlotPlaceholder]
+            )
+
+            , (* very hi-fi*)
+            (
+            computedContour = contour;
+
+            result = highQualityContourPlot[];
+
+            If[contour === computedContour, result, contourPlotPlaceholder]
+            )
+
+          };
+
+
+      densityPlotPlaceholderUpdate[] := densityPlotPlaceholder~ParallelSubmitPlaceholderMultiple~
+          {
+            (* simplest
+            Graphics3D[{
+              Translate[
+                Raster3D[tdata
+                  , ColorFunction -> (ColorData[{"RedGreenSplit", smm}][#]~Append~
+                    0.5 &)
+                ], Table[0.5, 3]]
+            }] (* takes long to send to frontend for large data!*)
+            , *)(* simpler *)
+            Image3D[tdata
+              , ColorFunction -> (ColorData[{"RedGreenSplit", smm}][#]~Append~
+                0.5 &)
+            ]
+            ,
+
+            MemoryConstrained[ListDensityPlot3D[tdata
+              , ColorFunction -> cf
+              , ColorFunctionScaling -> False
+              , DataRange -> dr
+              , BoxRatios -> Automatic
+            ], memoryConstraint, densityPlotPlaceholder]
+
+           ,(* hi-fi*)
+            MemoryConstrained[DensityPlot3D[
+              f[x, y, z]
+              , {x, 1., 1. Dimensions[data][[1]]}
+              , {y, 1., 1. Dimensions[data][[2]]}
+              , {z, 1., 1. Dimensions[data][[3]]}
+              , ColorFunction -> cf
+              , ColorFunctionScaling -> False
+              , PlotRange -> ({{1, 1, 1}, Dimensions[data]} // Transpose)
+              , BoxRatios -> Automatic
+            ], memoryConstraint, densityPlotPlaceholder]
+
+          };
+      densityPlotPlaceholderUpdate[];
+
+      realTimeUpdateContourPlot[] :=
+        TimeConstrained[
+          contourPlotPlaceholder = lowQualityContourPlot[];
+          contourPlotPlaceholder = mediumQualityContourPlot[];
+          contourPlotPlaceholder = highQualityContourPlot[];
+
+          , realTimeConstraint,contourPlotPlaceholder];
+
+      realTimeUpdateContourPlot[];
+      contourPlotPlaceholderUpdate[];
+
+      Framed@Column@{
+
+        {"contour", Slider[Dynamic[
+          contour, {(
+            contour = #1;
+            realTimeUpdateContourPlot[];
+          ) &
+
+            , (
+              contour = #1;
+              realTimeUpdateContourPlot[];
+              contourPlotPlaceholderUpdate[];
+            ) &}, TrackedSymbols:>{contour}], MinMax@data], Dynamic@contour}
+
+      ,Dynamic[Show[
+          Graphics3D[Point@Table[1, 3]
+            , Axes -> True
+            , AxesLabel -> $ShowDistanceField3DAxesLabel
+            , AxesOrigin -> Table[1, 3]
+            , Ticks -> (Range[#] & /@ Dimensions@data)
+            , PlotRange -> Transpose@{Table[1, 3], Dimensions[data]}
+            , BoxRatios -> Automatic
+            (*, ImageSize -> Dynamic[imageSize]*)
+          ]
+          , densityPlotPlaceholder
+          , contourPlotPlaceholder], TrackedSymbols:>{contourPlotPlaceholder,densityPlotPlaceholder}]
+      }
+
+    )];
 
 Options[ShowDistanceField3DSlice] = {Method -> ListPlot,
   PerformanceGoal -> "Speed"};
@@ -958,9 +1091,22 @@ SeriesExtractDerivatives[
   s : HoldPattern@SeriesData[x_Symbol, ___, k_, den_]] := (Normal@s~
     CoefficientList~(x))/(1/Array[Factorial, k, 0]) (* could also use SeriesCoefficient *)
 
+Options[AtomsMatching] = {Heads->False};
+AtomsMatching[e_, pat_,OptionsPattern[]] := Level[e,{-1},Heads -> OptionValue@Heads]~Cases~pat;
 
-AtomsMatching[e_, pat_] := Level[e,{-1}]~Cases~pat;
-SymbolAtoms[e_] := AtomsMatching[e, _Symbol];
+SetAttributes[HeldAtomsMatching, HoldAll]
+Options[HeldAtomsMatching] = {Heads->False};
+HeldAtomsMatching[e_,pat_,OptionsPattern[]] := Cases[Unevaluated@e, x: pat :> Hold@x, {-1},Heads -> OptionValue@Heads]
+
+Options[SymbolAtoms] = {Heads->False};
+SymbolAtoms[e_,OptionsPattern[]] := AtomsMatching[e, _Symbol,Heads -> OptionValue@Heads];
+
+SetAttributes[HeldSymbolAtoms, HoldAll]
+Options[HeldSymbolAtoms] = {Heads->False};
+HeldSymbolAtoms[e_,OptionsPattern[]] := HeldAtomsMatching[e, _Symbol,Heads -> OptionValue@Heads];
+
+ListOfHoldToHold[l:{Hold[_]...}] := Hold @@ l /. Hold[x_] :> x;
+
 HasDuplicateQ[l_List] := Not@DuplicateFreeQ[l]
 
 EchoBeforeAfter~SetAttributes~HoldAll
@@ -1020,17 +1166,34 @@ AllValues~SetAttributes~HoldAll
 SparseArrayQ[x_SparseArray] := True;
 SparseArrayQ[_] := False;
 
-(* http://mathematica.stackexchange.com/a/5274/6804*)
-qRunTask = CreateScheduledTask[Parallel`Developer`QueueRun[]];
-StartScheduledTask[qRunTask];
 
-ClearAll[AsynchronousEvaluate];
+(* http://mathematica.stackexchange.com/a/5274/6804*)
+If[DownValues@qRunTask === {},
+  qRunTask = CreateScheduledTask[Parallel`Developer`QueueRun[],0.01]; (* must be called to start and
+  stop external tasks *)
+  StartScheduledTask[qRunTask];
+];
+
+
+ParallelSubmitFinishedQ[eval_] :=
+    Head@Parallel`Developer`ProcessState[eval] ===
+        Parallel`Developer`finished;
+ClearAll@ParallelSubmitGet
+ParallelSubmitGet[eval_] /; ParallelSubmitFinishedQ[eval] :=
+    eval[[4]][[1]];
+ParallelSubmitGet[eval_] := eval;
+
+
 SetAttributes[AsynchronousEvaluate, HoldAll];
-AsynchronousEvaluate[exp_] := DynamicModule[{eval,display},
-  display = eval = ParallelSubmit[exp];
+
+AsynchronousEvaluate[exp_, whenDone_ : Null] := DynamicModule[{w, done = False},
+  w = ParallelSubmit[exp];
   Dynamic[
-    If[MatchQ[eval[[4]],
-      Parallel`Developer`finished[_]], display = eval[[4]][[1]]]; display]]
+    If[ParallelSubmitFinishedQ@w && !done, whenDone;done = True];
+
+    ParallelSubmitGet[w]
+  ]
+];
 
 (*first used in ColoredDistanceField from iamge construction*)
 ListNormalVectorPlot[x_SparseArray] := ListNormalVectorPlot@Normal@x;
@@ -1153,7 +1316,8 @@ GraphicsComplex[Cases[tmp,m_?MatrixQ:>m[[1]]],Cases[tmp,_Polygon],VertexColors->
 
 (* ********************* FullSymbolName ********************* *)
 
-FalseQ = Not@*TrueQ;
+FalseQ[False] = True;
+FalseQ[_] = False;
 
 (* ********************* FullSymbolName ********************* *)
 
@@ -1188,6 +1352,8 @@ CallWithUnevaluatedSymbol[f_, symbolName_String] :=
 
 
 (* ********************* FullSymbolName ********************* *)
+
+FullSymbolName[_[s_Symbol,___]] := FullSymbolName@s
 
 FullSymbolName[s_Symbol] := Context@s <> SymbolName@Unevaluated@s;
 FullSymbolName~SetAttributes~HoldAll;
@@ -1279,8 +1445,11 @@ CrossProductMatrix = SkewSymmetricMatrix3;
 
 (* ********************* ContainsQ ********************* *)
 
-ContainsQ = MemberQ;
-Contains = MemberQ;
+
+Contains[x_, a_] := Not@FreeQ[x, a];
+Contains[a_] := Contains[#, a]&;
+
+ContainsQ = Contains;
 
 (* ********************* ColumnVector ********************* *)
 
@@ -1511,6 +1680,16 @@ ArrayReshape[v_Symbol, dims : {d_Integer, h_Integer, w_Integer}] :=
 
 Protect@ArrayReshape;
 
+
+
+Unprotect[FileNameJoin];
+FileNameJoin[a_String, b_String] := FileNameJoin[{a, b}];
+Protect[FileNameJoin];
+
+(*Operator form extension to FileNameTake*)
+Unprotect@FileNameTake;
+FileNameTake[n_Integer] := FileNameTake[#, n] &;
+Protect@FileNameTake;
 
 (* ********************* RotationMatrixAxisAngleVector ********************* *)
 
