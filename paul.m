@@ -16,15 +16,6 @@
    1.1 replaced IterateWith with LetL
 *)
 
-(* :Warning:
-
-* This package Makes ArrayReshape work with any expression, despite this generting
-{ArrayReshape::list, Part::partd, Part::partd, Part::partd,
- General::stop}
-
-* This package adds the attribute HoldFirst to HoldFirst to make it act like an anonymous data-structure with this property.
-
-*)
 
 (* :Summary: Unsorted collection of various utilities *)
 
@@ -114,7 +105,9 @@ Missing is returned when the given element is not in the list."
 Positions::usage = "Positions[list, elementsInList]
 Returns a list of integers representing the positions of the elements in the list, in the same order,
 such that
-list[[Positions[list, list[[somePositionsInList_List]] ]]] = somePositionsInList"
+list[[Positions[list, list[[somePositionsInList_List]] ]]] = somePositionsInList
+
+The operator form Positions[list] is more efficient for repeated calls for the same list."
 
 RulesToFunction::usage =
 "RulesToFunction[rules] returns a function f such that f[x] === x /. rules if any rule matches x
@@ -408,7 +401,9 @@ SortMost;
 MostLast
 DropSpace
 
-StringSplitAt
+StringSplitAt::usage = "split a string at a certain character, optionally keep the character
+at the split point with left or right string with the option \"KeepSeparator\" -> \"Left\"|\"Right\",
+default is None"
 
 BraceNestingDepth
 
@@ -416,7 +411,6 @@ CharacterMap::usage = "applies a function to each character in s"
 
 IdentityRule
 
-MSBuild
 
 TaskKill
 
@@ -429,7 +423,10 @@ concatenated, whitespace outside of the quotes is ignored."
 
 StringFirst
 
-SplitAtFirst
+SplitAtFirst::usage = "split a string at the first
+occurrence of separator in string. Optionally keep the separator with either
+left or right half"
+
 
 IsideQuotationIndicator::usage = "Returns a list of 0 and 1 for each character in the string,
 1 iff the corresponding character is preceded by an odd number of  \" marks"
@@ -492,15 +489,30 @@ EchoUnevaluatedWithAbsoluteTiming
 ParallelSubmitPlaceholderMultiple
 
 
-EvaluatingCell
+EvaluatingCell::usage = "gives the Cell[] expression of the cell that
+is being evaluated"
 
 StringSelect
 
 StringSplitOp (*operator form*)
+
+
+FirstMost
+FirstRest
+
+MostLast
+
+StringRiffleOp
 (* ********************* --- Implementation --- ********************* *)
 
 Begin@"`Private`";
 
+StringRiffleOp[sep__] := StringRiffle[##, sep] & ;
+
+FirstMost[x_] := {First@x, Most@x};
+FirstRest[x_] := {First@x, Rest@x};
+
+MostLast[x_] := {Most@x, Last@x};
 (*
 Unprotect@StringSplit
 Protect@StringSplit
@@ -509,7 +521,7 @@ StringSplitOp[delim__] := StringSplit[#, delim]&;
 
 StringSelect[a_, pat_] := Select[a, StringMatchQ[#, pat]&];
 
-EvaluatingCell[] := EvaluationCell[] // NotebookRead
+EvaluatingCell[] := EvaluationCell[] // NotebookRead;
 
 
 ParallelSubmitPlaceholder~SetAttributes~HoldAll
@@ -559,21 +571,21 @@ WhichDownValueRule~SetAttributes~HoldAll
 WhichDownValueRule[d : f_Symbol[args___]] := Module[{dummyHead,
   evaluatedArguments, x},
     dummyHead~SetAttributes~Attributes@f;
-    evaluatedArguments = Echo@dummyHead[args];
+    evaluatedArguments = dummyHead[args];
 
     With[
-      {hfx = Echo[evaluatedArguments /. dummyHead[eargs__] -> Hold@f[eargs]]}
+      {hfx = evaluatedArguments /. dummyHead[eargs__] -> Hold@f[eargs]}
 
     , ReleaseHold@
         SelectFirst[
              (Hold /@ #)& /@ DownValues@f, MatchQ[hfx, First@#] &
-          , Missing["NotFound",WhichDownValueRule,HoldForm@d]
+          , Missing["NotFound",{WhichDownValueRule,HoldForm@d}]
         ]
     ]
   ];
 
 
-WhichDownValue[d : f_Symbol[args___]] := First@WhichDownValueRule@d;
+WhichDownValue[d : f_Symbol[args___]] := {dw=WhichDownValueRule@d}~With~If[MissingQ@dw,dw, First@dw];
 
 StringJoinTo~SetAttributes~HoldFirst
 StringJoinTo[s_, a___String] := s = s <> StringJoin[a];
@@ -910,7 +922,7 @@ DeleteIf[x_, t_] := DeleteCases[x, _?t]
 AllHeads[e_, h_] := AllTrue[e, Head@# === h&];
 
 (* TODO work with non-chars *)
-SplitAtFirst[s_String, c_String] := StringSplitAt[s, FirstStringPosition[s, c]]
+SplitAtFirst[s_String, c_String, opts___] := StringSplitAt[s, FirstStringPosition[s, c], opts]
 
 StringFirst = StringTake[#,1]&
 
@@ -927,11 +939,6 @@ Omittable[x_] := x | PatternSequence[]
 
 TaskKill[exe_String] := RunProcess[{
   "taskkill.exe",  "/f","/im",exe(*note: /im must immediately precede the image name*)
-}, "StandardOutput"]
-
-MSBuild[sln_String] := RunProcess[{
-  "C:\\Program Files (x86)\\MSBuild\\12.0\\Bin\\msbuild.exe",
-  FindFile@sln, "/t:Rebuild"
 }, "StandardOutput"]
 
 IdentityRule[x_] := x -> x;
@@ -958,11 +965,19 @@ IsideQuotationIndicator[s_String] := Module[{cnt, depth = 0},
 
 CharacterMap[f_, s_String] := f /@ Characters@s;
 
-StringSplitAt[s_String, pos_Integer] := {StringTake[s, pos - 1],
-  StringDrop[s, pos]}
-StringSplitAt[s_String, {}] := s
-StringSplitAt[s_String, pos : {a_Integer, b___Integer}] :=
-    Flatten@MapAt[StringSplitAt[#, {b} - a] &, StringSplitAt[s, a], 2];
+Options@StringSplitAt = {"KeepSeparator" -> None};
+
+StringSplitAt[s_String, pos_Integer, o:OptionsPattern[]] :=
+  Switch[OptionValue@"KeepSeparator",
+    None, {StringTake[s, pos - 1], StringDrop[s, pos]},
+    "Left", {StringTake[s, pos], StringDrop[s, pos]},
+    "Right", {StringTake[s, pos - 1], StringDrop[s, pos-1]}
+];
+
+StringSplitAt[s_String, {}, OptionsPattern[]] := s
+
+StringSplitAt[s_String, pos : {a_Integer, b___Integer}, o : OptionsPattern[]] :=
+    Flatten@MapAt[StringSplitAt[#, {b} - a + Boole[OptionValue@"KeepSeparator"=== "Right"],o] &, StringSplitAt[s, a, o], 2];
 
 DropSpace = StringReplace[#, " " -> ""] &
 
@@ -1266,13 +1281,20 @@ FirstNonNull[x_, rest__] := {r = x}~With~If[r =!= Null, r,
 
 AllEqual[list_List, property_] := Equal@@(property /@ list);
 AllEqual[property_] := Equal@@(property  /@ #) &;
-(* TODO instead of Equal, any operation could be used *)
+(* TODO instead of Equal, any operation could be used
+
+usage:
+{{{___Integer}, {___Integer}}?(AllEqual[Length]) ..}*)
 
 (* ********************* FullSymbolName ********************* *)
 
-Positions[list_List, elementsInList_List] := With[{pflist = PositionFunction@list},
-  pflist /@ elementsInList
-  ];
+Positions[list_List, (missingAbort_?BooleanQ)~Optional~False] :=
+    With[{pflist = PositionFunction[list,missingAbort]},
+  (pflist /@ #)&
+];
+
+Positions[list_List, elementsInList_List,
+  (missingAbort_?BooleanQ)~Optional~False] := Positions[list, missingAbort]@elementsInList;
 
 (* ********************* FullSymbolName ********************* *)
 
@@ -1287,8 +1309,11 @@ RuleMapIndexed[f_, list_List] := MapIndexed[list~Extract~#2 -> f@## &, list]
 
 (* ********************* FullSymbolName ********************* *)
 
-PositionFunction[list_List] := Module[{f},
+PositionFunction[list_List, (missingAbort_?BooleanQ)~Optional~False] := Module[{f},
+
   f[x_] := Missing[PositionFunction, x, "!\[Element]", Short@list]; (* TODO optimize away where it matters *)
+  If[missingAbort, f[x_] := (Message[PositionFunction::missing, Missing[PositionFunction, x, "!\[Element]", Short@list]]; Abort[];)];
+
   ForEach[{i, Length@list}, f@list[[i]] = i];
   f
 ]
@@ -1302,10 +1327,6 @@ PositionsOnLevel[e_, levelspec_] := Position[e, _, levelspec, Heads->False];
 
 HasOwnValue~SetAttributes~HoldAll
 HasOwnValue[x_] := Not[x === Unevaluated@x];
-
-(* ********************* FullSymbolName ********************* *)
-
-HoldFirst~SetAttributes~HoldFirst
 
 (* ********************* FullSymbolName ********************* *)
 
@@ -1666,30 +1687,6 @@ PartitionIntoSublists[v_Symbol, counts : {_Integer ..}] :=
 
 AllLessEqual[a_List, b_List] := And @@ Thread@LessEqual[a,b];
 
-(* ********************* ArrayReshape extension ********************* *)
-
-ArrayReshape; (* cache it *)
-Unprotect@ArrayReshape;
-
-ArrayReshape[v_Symbol, dims : {w_Integer}] :=
-    (*Array[v[[#]] &, h]; or *) Table[v[[x]], {x, w}];
-ArrayReshape[v_Symbol, dims : {h_Integer, w_Integer}] :=
-    Table[v[[(y - 1)*w + x]], {y, h}, {x, w}];
-ArrayReshape[v_Symbol, dims : {d_Integer, h_Integer, w_Integer}] :=
-    Table[v[[(z - 1)*w*d + (y-1)*w + x]], {z, d}, {y, h}, {x, w}];
-
-Protect@ArrayReshape;
-
-
-
-Unprotect[FileNameJoin];
-FileNameJoin[a_String, b_String] := FileNameJoin[{a, b}];
-Protect[FileNameJoin];
-
-(*Operator form extension to FileNameTake*)
-Unprotect@FileNameTake;
-FileNameTake[n_Integer] := FileNameTake[#, n] &;
-Protect@FileNameTake;
 
 (* ********************* RotationMatrixAxisAngleVector ********************* *)
 
