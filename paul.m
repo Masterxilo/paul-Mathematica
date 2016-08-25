@@ -434,8 +434,11 @@ IsideQuotationIndicator::usage = "Returns a list of 0 and 1 for each character i
 AllHeads::usage = "[e, h] True iff all heads at level 1 in e are h"
 
 DeleteIf::usage = "Like DeleteCases, but always applies a test. Circumvents the _?f[x] syntax catch."
+DeleteUnless
 
 DeleteMembersOf::usage = "Like Complement, but does not sort"
+DeleteNonMembersOf
+KeepMembersOf
 
 ToInnerCoordinateBounds::usage = "Given CoordinateBounds, subtracts 1 from the max and adds one to the min,
 effectively giving the coordinate bounds of the inner set"
@@ -917,7 +920,8 @@ SymmetricMinMax[data_] := PlusMinusList@Max@Abs@MinMax@data
 
 ToInnerCoordinateBounds[cb : {{_Integer, _Integer}..}] := # + {1, -1} & /@ cb;
 
-DeleteIf[x_, t_] := DeleteCases[x, _?t]
+DeleteIf[x_, t_] := Select[x, Not@*t]
+DeleteUnless = Select
 
 AllHeads[e_, h_] := AllTrue[e, Head@# === h&];
 
@@ -1025,6 +1029,8 @@ StringFirstBracePairContents[s_String] := Module[{cnt, depth = 0, cont = ""},
 KeysValues[x_] := Through[{Keys,Values}@x]
 
 DeleteMembersOf[l_, of_] := l~DeleteIf~(MemberQ[of, #] &)
+DeleteNonMembersOf[l_, of_] := l~DeleteUnless~(MemberQ[of, #] &)
+KeepMembersOf = DeleteNonMembersOf
 
 DeleteSequenceCases[e_, c_] := With[{del = SequenceCases[e, c]},
   e~DeleteMembersOf~del
